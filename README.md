@@ -84,7 +84,9 @@ circo-ai/
 
 ## Contributing
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+## CI/CD Test
 
+   Testing pipeline - [june 3 2025]
 ## License
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
