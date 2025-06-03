@@ -33,8 +33,8 @@ Circo AI is a cutting-edge, modular AI-powered plastic recycling system capable 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/circo-ai.git
-cd circo-ai
+git clone https://github.com/kingogie88/ai-circo-kingmasonltd.git
+cd ai-circo-kingmasonltd
 ```
 
 2. Create and activate a virtual environment:
