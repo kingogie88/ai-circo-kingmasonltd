@@ -1,4 +1,30 @@
-# Core Dependencies
+# Core ML/CV dependencies
+
+opencv-python==4.8.0
+
+pillow==11.2.0
+
+numpy==1.26.0
+
+onnx==1.18.0
+
+onnxruntime==1.19.2
+
+tensorflow-hub==0.14.0
+
+albumentations==1.3.1
+
+ultralytics==8.0.0
+
+
+
+# System dependencies (install separately in production)
+
+# ros-humble-ros-base==0.4.0  # Install via apt on Ubuntu
+
+# postgresql  # Install via system package manager
+
+# redis  # Install via system package manager# Core Dependencies
 numpy>=1.24.0
 torch>=2.0.0
 torchvision>=0.15.0
