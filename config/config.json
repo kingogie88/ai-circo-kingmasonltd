@@ -1,0 +1,104 @@
+{
+    "facility_id": "CIRCO-001",
+    "vision": {
+        "model_path": "models/plastic_classifier.pt",
+        "camera_config": {
+            "type": "GigE",
+            "resolution": [1920, 1080],
+            "fps": 30,
+            "exposure": 10000
+        }
+    },
+    "robotics": {
+        "robot_type": "ur",
+        "conveyor_ip": "192.168.1.100",
+        "robot_config": {
+            "max_speed": 1.0,
+            "max_acceleration": 1.0,
+            "payload": 5.0,
+            "safety_planes": [
+                {"x": 0.0, "y": 0.0, "z": 0.0},
+                {"x": 1.0, "y": 1.0, "z": 1.0}
+            ]
+        }
+    },
+    "maintenance": {
+        "model_path": "models/maintenance_predictor",
+        "update_interval": 300,
+        "thresholds": {
+            "vibration": 0.5,
+            "temperature": 80.0,
+            "current": 15.0,
+            "pressure": 6.0
+        }
+    },
+    "energy": {
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "episodes": 1000,
+        "gamma": 0.99,
+        "epsilon": 0.1,
+        "target_update_freq": 100,
+        "thresholds": {
+            "max_power": 100.0,
+            "target_efficiency": 0.85,
+            "peak_limit": 120.0
+        }
+    },
+    "blockchain": {
+        "network_url": "https://polygon-rpc.com",
+        "contract_address": "0x0000000000000000000000000000000000000000",
+        "private_key": null,
+        "gas_limit": 2000000,
+        "confirmations": 2
+    },
+    "dashboard": {
+        "port": 8000,
+        "update_interval": 1,
+        "history_hours": 24
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "logs/circo.log",
+        "max_size": 10485760,
+        "backup_count": 5
+    },
+    "monitoring": {
+        "enabled": true,
+        "prometheus_port": 9090,
+        "grafana_port": 3000,
+        "alert_thresholds": {
+            "system_health": 80.0,
+            "quality": 95.0,
+            "energy_efficiency": 80.0,
+            "throughput": 150.0
+        }
+    },
+    "storage": {
+        "type": "postgresql",
+        "host": "localhost",
+        "port": 5432,
+        "database": "circo",
+        "user": "circo_user",
+        "password": null
+    },
+    "api": {
+        "port": 8080,
+        "workers": 4,
+        "timeout": 30,
+        "rate_limit": {
+            "requests": 100,
+            "period": 60
+        }
+    },
+    "security": {
+        "jwt_secret": null,
+        "token_expiry": 3600,
+        "allowed_origins": ["*"],
+        "ssl": {
+            "enabled": false,
+            "cert_file": null,
+            "key_file": null
+        }
+    }
+} 
