@@ -27,18 +27,19 @@ jobs:
         pip install poetry
         poetry config virtualenvs.create false
         poetry install --no-interaction --no-root
-        pip install pytest pytest-cov numpy opencv-python pillow
+        pip install pytest pytest-cov numpy opencv-python pillow pandas
         
-    - name: Debug Info
-      run: |
-        pwd
-        ls -la
-        python -c "import sys; print(sys.path)"
-        
-    - name: Run tests
+    - name: Setup test environment
       run: |
         mkdir -p models
         touch models/yolov8_plastic.pt
+        mkdir -p src/vision src/robotics src/safety_monitoring
+        touch src/vision/__init__.py
+        touch src/robotics/__init__.py
+        touch src/safety_monitoring/__init__.py
+        
+    - name: Run tests
+      run: |
         python -m pytest tests/ -v --tb=short
 
   build:
