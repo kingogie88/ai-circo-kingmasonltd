@@ -143,4 +143,4 @@ docker-compose.override.yml
 .secret
 node_modules/
 artifacts/
-cache/ 
+cache/ .env
