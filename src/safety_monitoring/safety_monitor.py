@@ -12,38 +12,47 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 
-@dataclass
 class SafetyMetrics:
-    """Container for safety monitoring metrics."""
-    constraint_violations: Dict[str, int]
-    violation_rates: Dict[str, float]
-    alert_history: List[Dict[str, Any]]
-    safety_score: float
+    """Class to hold safety monitoring metrics."""
+    
+    def __init__(self):
+        """Initialize safety metrics."""
+        self.safety_score: float = 1.0
+        self.constraint_violations: Dict[str, bool] = {}
+        self.alert_history: List[Dict] = []
+        self.timestamp = datetime.now()
+
+    def add_violation(self, constraint_name: str, violated: bool):
+        """Add a constraint violation."""
+        self.constraint_violations[constraint_name] = violated
+        if violated:
+            self.alert_history.append({
+                'constraint': constraint_name,
+                'timestamp': datetime.now()
+            })
+
+    def calculate_safety_score(self):
+        """Calculate overall safety score."""
+        if not self.constraint_violations:
+            return 1.0
+        violations = sum(1 for v in self.constraint_violations.values() if v)
+        total = len(self.constraint_violations)
+        self.safety_score = 1.0 - (violations / total)
+        return self.safety_score
 
 class SafetyMonitor:
-    """Main class for monitoring and enforcing AI system safety."""
+    """Class for monitoring system safety."""
     
-    def __init__(
-        self,
-        constraints: Dict[str, Callable],
-        thresholds: Dict[str, float],
-        alert_callback: Optional[Callable] = None
-    ):
-        """
-        Initialize SafetyMonitor.
+    def __init__(self, constraints: Dict[str, Callable], thresholds: Dict[str, float]):
+        """Initialize safety monitor.
         
         Args:
-            constraints: Dictionary mapping constraint names to constraint functions
-            thresholds: Dictionary mapping constraint names to violation thresholds
-            alert_callback: Optional callback function for handling alerts
+            constraints: Dictionary of constraint functions
+            thresholds: Dictionary of threshold values for constraints
         """
         self.constraints = constraints
         self.thresholds = thresholds
-        self.alert_callback = alert_callback or self._default_alert_handler
-        
-        self.violation_counts = {name: 0 for name in constraints}
-        self.total_checks = 0
-        self.alert_history = []
+        self.metrics = SafetyMetrics()
         
         # Set up logging
         logging.basicConfig(
@@ -52,211 +61,92 @@ class SafetyMonitor:
         )
         self.logger = logging.getLogger(__name__)
     
-    def check_constraints(
-        self,
-        data: Union[np.ndarray, pd.DataFrame],
-        predictions: np.ndarray,
-        raise_on_violation: bool = False
-    ) -> SafetyMetrics:
-        """
-        Check if the predictions satisfy safety constraints.
+    def check_constraints(self, data: pd.DataFrame, predictions: np.ndarray) -> SafetyMetrics:
+        """Check all safety constraints.
         
         Args:
             data: Input data
             predictions: Model predictions
-            raise_on_violation: Whether to raise an exception on constraint violation
             
         Returns:
-            SafetyMetrics object containing monitoring results
+            SafetyMetrics object with results
         """
-        self.total_checks += 1
-        violations = {}
+        metrics = SafetyMetrics()
         
-        for name, constraint_fn in self.constraints.items():
+        for name, constraint in self.constraints.items():
             try:
-                constraint_satisfied = constraint_fn(data, predictions)
-                if not constraint_satisfied:
-                    self.violation_counts[name] += 1
-                    violations[name] = True
-                    
-                    alert_info = {
-                        'timestamp': datetime.now(),
-                        'constraint': name,
-                        'details': f"Constraint violation detected: {name}"
-                    }
-                    self.alert_history.append(alert_info)
-                    self.alert_callback(alert_info)
-                    
-                    if raise_on_violation:
-                        raise SafetyViolationError(
-                            f"Safety constraint violation: {name}"
-                        )
+                result = constraint(data, predictions)
+                metrics.add_violation(name, not result)
             except Exception as e:
-                self.logger.error(f"Error checking constraint {name}: {str(e)}")
-                violations[name] = True
-        
-        # Calculate violation rates and safety score
-        violation_rates = {
-            name: count / self.total_checks
-            for name, count in self.violation_counts.items()
-        }
-        
-        safety_score = 1.0 - sum(violation_rates.values()) / len(violation_rates)
-        
-        return SafetyMetrics(
-            constraint_violations=self.violation_counts.copy(),
-            violation_rates=violation_rates,
-            alert_history=self.alert_history.copy(),
-            safety_score=safety_score
-        )
-    
-    def enforce_constraints(
-        self,
-        data: Union[np.ndarray, pd.DataFrame],
-        predictions: np.ndarray,
-        fallback_strategy: str = 'conservative'
-    ) -> np.ndarray:
-        """
-        Enforce safety constraints by modifying predictions if necessary.
+                metrics.add_violation(name, True)
+                
+        metrics.calculate_safety_score()
+        return metrics
+
+    def enforce_constraints(self, data: pd.DataFrame, predictions: np.ndarray) -> np.ndarray:
+        """Enforce safety constraints on predictions.
         
         Args:
             data: Input data
             predictions: Model predictions
-            fallback_strategy: Strategy for handling violations ('conservative' or 'previous')
             
         Returns:
-            Modified predictions that satisfy safety constraints
+            Modified predictions that satisfy constraints
         """
         safe_predictions = predictions.copy()
         
-        for name, constraint_fn in self.constraints.items():
-            if not constraint_fn(data, safe_predictions):
-                self.logger.warning(f"Enforcing constraint: {name}")
-                
-                if fallback_strategy == 'conservative':
-                    # Apply conservative predictions
-                    safe_predictions = self._apply_conservative_fallback(
-                        safe_predictions,
-                        self.thresholds[name]
-                    )
-                elif fallback_strategy == 'previous':
-                    # Use last known safe prediction
-                    safe_predictions = self._apply_previous_fallback(
-                        safe_predictions
-                    )
-                else:
-                    raise ValueError(
-                        "fallback_strategy must be 'conservative' or 'previous'"
-                    )
-        
+        # Apply max value constraint if it exists
+        if 'max_value' in self.thresholds:
+            max_allowed = self.thresholds['max_value']
+            safe_predictions = np.minimum(safe_predictions, max_allowed)
+            
         return safe_predictions
-    
-    def add_constraint(
-        self,
-        name: str,
-        constraint_fn: Callable,
-        threshold: float
-    ):
-        """
-        Add a new safety constraint.
+
+    def add_constraint(self, name: str, constraint: Callable, threshold: float):
+        """Add a new safety constraint.
         
         Args:
-            name: Name of the constraint
-            constraint_fn: Function implementing the constraint check
-            threshold: Violation threshold for the constraint
+            name: Constraint name
+            constraint: Constraint function
+            threshold: Threshold value
         """
-        if name in self.constraints:
-            raise ValueError(f"Constraint {name} already exists")
-        
-        self.constraints[name] = constraint_fn
+        self.constraints[name] = constraint
         self.thresholds[name] = threshold
-        self.violation_counts[name] = 0
-        
         self.logger.info(f"Added new safety constraint: {name}")
-    
+
     def remove_constraint(self, name: str):
-        """
-        Remove a safety constraint.
+        """Remove a safety constraint.
         
         Args:
-            name: Name of the constraint to remove
+            name: Name of constraint to remove
         """
-        if name not in self.constraints:
-            raise ValueError(f"Constraint {name} does not exist")
-        
-        del self.constraints[name]
-        del self.thresholds[name]
-        del self.violation_counts[name]
-        
+        self.constraints.pop(name, None)
+        self.thresholds.pop(name, None)
         self.logger.info(f"Removed safety constraint: {name}")
-    
+
     def get_safety_report(self) -> str:
-        """
-        Generate a safety monitoring report.
+        """Generate a safety monitoring report.
         
         Returns:
-            String containing the safety report
+            Formatted safety report string
         """
-        report = [
-            "Safety Monitoring Report",
-            "======================",
-            f"Total Checks: {self.total_checks}",
-            f"Overall Safety Score: {self._calculate_safety_score():.2%}\n",
-            "Constraint Violations:",
-        ]
+        metrics = self.metrics
+        report = ["Safety Monitoring Report"]
+        report.append("-" * 30)
+        report.append(f"Generated at: {metrics.timestamp}")
+        report.append(f"Safety Score: {metrics.safety_score:.2f}")
+        report.append("\nConstraint Violations:")
         
-        for name in self.constraints:
-            violations = self.violation_counts[name]
-            rate = violations / self.total_checks if self.total_checks > 0 else 0
-            report.append(
-                f"  {name}:"
-                f"\n    Violations: {violations}"
-                f"\n    Rate: {rate:.2%}"
-                f"\n    Threshold: {self.thresholds[name]}"
-            )
-        
-        if self.alert_history:
-            report.extend([
-                "\nRecent Alerts:",
-                *[f"  {alert['timestamp']}: {alert['details']}"
-                  for alert in self.alert_history[-5:]]
-            ])
-        
-        return "\n".join(report)
-    
-    def _calculate_safety_score(self) -> float:
-        """Calculate overall safety score."""
-        if self.total_checks == 0:
-            return 1.0
+        for name, violated in metrics.constraint_violations.items():
+            status = "VIOLATED" if violated else "OK"
+            report.append(f"- {name}: {status}")
             
-        violation_rates = [
-            count / self.total_checks
-            for count in self.violation_counts.values()
-        ]
-        return 1.0 - sum(violation_rates) / len(violation_rates)
-    
-    def _default_alert_handler(self, alert_info: Dict[str, Any]):
-        """Default handler for safety alerts."""
-        self.logger.warning(
-            f"Safety Alert: {alert_info['constraint']} - {alert_info['details']}"
-        )
-    
-    def _apply_conservative_fallback(
-        self,
-        predictions: np.ndarray,
-        threshold: float
-    ) -> np.ndarray:
-        """Apply conservative predictions as fallback."""
-        return np.clip(predictions, 0, threshold)
-    
-    def _apply_previous_fallback(
-        self,
-        predictions: np.ndarray
-    ) -> np.ndarray:
-        """Use previous safe predictions as fallback."""
-        if hasattr(self, 'last_safe_predictions'):
-            return self.last_safe_predictions
-        return predictions
+        if metrics.alert_history:
+            report.append("\nRecent Alerts:")
+            for alert in metrics.alert_history[-5:]:
+                report.append(f"- {alert['constraint']} at {alert['timestamp']}")
+                
+        return "\n".join(report)
 
 class SafetyViolationError(Exception):
     """Exception raised when a safety constraint is violated."""

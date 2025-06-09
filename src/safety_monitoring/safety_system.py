@@ -3,23 +3,21 @@ Safety monitoring system for the plastic recycling system.
 """
 
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import RPi.GPIO as GPIO
 from loguru import logger
+from .safety_monitor import SafetyMonitor, SafetyMetrics
 
 class SafetySystem:
-    """Class for monitoring system safety."""
+    """Overall safety management system."""
     
-    def __init__(self, timeout: float = 0.1, check_interval: float = 0.5):
-        """Initialize the safety system.
-        
-        Args:
-            timeout: Timeout for safety checks in seconds
-            check_interval: Interval between safety checks in seconds
-        """
-        self.timeout = timeout
-        self.check_interval = check_interval
+    def __init__(self):
+        """Initialize safety system."""
+        self.monitors: Dict[str, SafetyMonitor] = {}
+        self.global_metrics: List[SafetyMetrics] = []
+        self.timeout: float = 0.1
+        self.check_interval: float = 0.5
         self.emergency_stop_pin = 21  # GPIO21
         self.safety_sensors = {
             'proximity': 22,  # GPIO22
@@ -29,6 +27,52 @@ class SafetySystem:
         }
         self.monitoring = False
         self.safety_violations: List[str] = []
+        
+    def add_monitor(self, name: str, monitor: SafetyMonitor):
+        """Add a safety monitor.
+        
+        Args:
+            name: Monitor name
+            monitor: SafetyMonitor instance
+        """
+        self.monitors[name] = monitor
+        
+    def remove_monitor(self, name: str):
+        """Remove a safety monitor.
+        
+        Args:
+            name: Name of monitor to remove
+        """
+        self.monitors.pop(name, None)
+        
+    def get_global_safety_score(self) -> float:
+        """Calculate global safety score.
+        
+        Returns:
+            Float between 0 and 1 representing overall safety
+        """
+        if not self.global_metrics:
+            return 1.0
+            
+        scores = [m.safety_score for m in self.global_metrics]
+        return sum(scores) / len(scores)
+        
+    def get_system_report(self) -> str:
+        """Generate system-wide safety report.
+        
+        Returns:
+            Formatted report string
+        """
+        report = ["System Safety Report", "==================="]
+        
+        report.append(f"\nGlobal Safety Score: {self.get_global_safety_score():.2f}")
+        
+        for name, monitor in self.monitors.items():
+            report.append(f"\nMonitor: {name}")
+            report.append("-" * (len(name) + 9))
+            report.append(monitor.get_safety_report())
+            
+        return "\n".join(report)
         
     async def initialize(self):
         """Initialize the safety system."""

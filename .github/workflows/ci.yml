@@ -53,8 +53,8 @@ jobs:
       run: |
         source venv/bin/activate
         python -m pip install --upgrade pip
+        pip install numpy pandas pytest pytest-cov pytest-asyncio
         pip install -r requirements.txt
-        pip install pytest pytest-cov
         pip install -e .[dev]
         
     - name: Setup test environment
@@ -74,11 +74,7 @@ jobs:
     - name: Run tests
       run: |
         source venv/bin/activate
-        python -m pytest tests/ -v --tb=short || {
-          echo "Test output:"
-          cat pytest-output.txt
-          exit 1
-        }
+        python -m pytest tests/ -v --tb=short
 
   build:
     needs: test

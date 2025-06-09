@@ -1,0 +1,4 @@
+# Allowed Actions Configuration
+allowedActions:
+  - "actions/*"  # Allow all GitHub official actions
+  - "kingogie88/*"  # Allow all actions from your organization/user 
