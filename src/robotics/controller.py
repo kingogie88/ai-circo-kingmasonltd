@@ -1,202 +1,164 @@
 """
-Robotics Control Interface for managing robot arms and conveyor systems using ROS2
+Robotics control module for the recycling system.
 """
 
-import logging
-from typing import Dict, List, Optional, Tuple
-import time
+import asyncio
+from typing import Dict
 
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionClient
-from control_msgs.action import FollowJointTrajectory
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from geometry_msgs.msg import Pose
-from std_msgs.msg import Bool
-from pymodbus.client import ModbusTcpClient
+import RPi.GPIO as GPIO
+from gpiozero import Servo
+from loguru import logger
 
-logger = logging.getLogger(__name__)
-
-class RoboticController(Node):
-    def __init__(self, robot_type: str = "ur", conveyor_ip: str = "192.168.1.100"):
-        """Initialize the robotic control interface."""
-        super().__init__('robotic_controller')
-        
-        # Robot configuration
-        self.robot_type = robot_type.lower()
-        self.robot_connected = False
-        self.conveyor_client = ModbusTcpClient(conveyor_ip)
-        
-        # Initialize ROS2 action client for robot control
-        self.trajectory_client = ActionClient(
-            self, 
-            FollowJointTrajectory, 
-            f'/{self.robot_type}_controller/follow_joint_trajectory'
-        )
-        
-        # Initialize publishers and subscribers
-        self.emergency_stop_pub = self.create_publisher(Bool, '/emergency_stop', 10)
-        self.robot_status_sub = self.create_subscription(
-            Bool,
-            '/robot_status',
-            self.robot_status_callback,
-            10
-        )
-        
-        logger.info(f"Initialized RoboticController for {robot_type} robot")
-
-    def connect(self) -> bool:
-        """Establish connection with robot and conveyor."""
-        try:
-            # Wait for action server
-            if not self.trajectory_client.wait_for_server(timeout_sec=5.0):
-                logger.error("Action server not available")
-                return False
-            
-            # Connect to conveyor
-            if not self.conveyor_client.connect():
-                logger.error("Failed to connect to conveyor")
-                return False
-            
-            self.robot_connected = True
-            logger.info("Successfully connected to robot and conveyor")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Connection failed: {e}")
-            return False
-
-    def robot_status_callback(self, msg: Bool):
-        """Callback for robot status updates."""
-        self.robot_connected = msg.data
-        if not self.robot_connected:
-            logger.warning("Robot connection lost")
-
-    def move_to_position(self, 
-                        target_pose: Pose,
-                        speed: float = 1.0,
-                        acceleration: float = 1.0) -> bool:
-        """
-        Move robot arm to target position.
+class RobotController:
+    """Class for controlling the robotic sorting system."""
+    
+    def __init__(self, arm_config: Dict, conveyor_config: Dict):
+        """Initialize the robot controller.
         
         Args:
-            target_pose: Target pose in Cartesian space
-            speed: Movement speed (0.0-1.0)
-            acceleration: Movement acceleration (0.0-1.0)
-            
-        Returns:
-            bool: Success status
+            arm_config: Configuration for the robotic arm
+            conveyor_config: Configuration for the conveyor belt
         """
-        if not self.robot_connected:
-            logger.error("Robot not connected")
-            return False
-            
+        self.arm_config = arm_config
+        self.conveyor_config = conveyor_config
+        self.servo_base = None
+        self.servo_elbow = None
+        self.servo_wrist = None
+        self.conveyor_pin = None
+        
+    async def initialize(self):
+        """Initialize the robotics system."""
         try:
-            # Create trajectory message
-            trajectory = JointTrajectory()
-            trajectory.joint_names = self._get_joint_names()
+            # Setup GPIO
+            GPIO.setmode(GPIO.BCM)
             
-            # Convert pose to joint angles (inverse kinematics)
-            joint_positions = self._inverse_kinematics(target_pose)
+            # Initialize servos
+            self.servo_base = Servo(17)  # GPIO17
+            self.servo_elbow = Servo(18)  # GPIO18
+            self.servo_wrist = Servo(19)  # GPIO19
             
-            # Create trajectory point
-            point = JointTrajectoryPoint()
-            point.positions = joint_positions
-            point.time_from_start.sec = int(5.0 / speed)  # Adjust duration based on speed
-            trajectory.points.append(point)
+            # Initialize conveyor
+            self.conveyor_pin = 20  # GPIO20
+            GPIO.setup(self.conveyor_pin, GPIO.OUT)
+            GPIO.output(self.conveyor_pin, GPIO.LOW)
             
-            # Create and send goal
-            goal = FollowJointTrajectory.Goal()
-            goal.trajectory = trajectory
+            logger.info("Robotics system initialized")
             
-            # Send goal and wait for result
-            future = self.trajectory_client.send_goal_async(goal)
-            rclpy.spin_until_future_complete(self, future)
+        except Exception as e:
+            logger.error(f"Failed to initialize robotics system: {e}")
+            raise
             
-            goal_handle = future.result()
-            if not goal_handle.accepted:
-                logger.error("Goal rejected")
-                return False
+    async def move_arm(self, angles: Dict[str, float]):
+        """Move the robotic arm to specified angles.
+        
+        Args:
+            angles: Dictionary containing angles for each joint
+        """
+        try:
+            if any(servo is None for servo in [self.servo_base, self.servo_elbow, self.servo_wrist]):
+                raise RuntimeError("Servos not initialized")
                 
+            # Move servos
+            self.servo_base.value = angles.get('base', 0)
+            self.servo_elbow.value = angles.get('elbow', 0)
+            self.servo_wrist.value = angles.get('wrist', 0)
+            
             # Wait for movement to complete
-            result_future = goal_handle.get_result_async()
-            rclpy.spin_until_future_complete(self, result_future)
-            
-            return True
+            await asyncio.sleep(0.5)
             
         except Exception as e:
-            logger.error(f"Movement failed: {e}")
-            return False
-
-    def control_conveyor(self, speed: float) -> bool:
-        """
-        Control conveyor belt speed.
+            logger.error(f"Error during arm movement: {e}")
+            raise
+            
+    async def control_conveyor(self, speed: float):
+        """Control the conveyor belt speed.
         
         Args:
-            speed: Conveyor speed (0.0-1.0)
-            
-        Returns:
-            bool: Success status
+            speed: Speed value between 0 and 1
         """
         try:
-            # Convert speed to Modbus register value (0-4095)
-            speed_value = int(speed * 4095)
-            
-            # Write speed to Modbus register
-            response = self.conveyor_client.write_register(0, speed_value)
-            if not response.isError():
-                logger.info(f"Conveyor speed set to {speed}")
-                return True
-            else:
-                logger.error("Failed to set conveyor speed")
-                return False
+            if self.conveyor_pin is None:
+                raise RuntimeError("Conveyor not initialized")
                 
+            # Validate speed
+            speed = max(0, min(1, speed))
+            
+            # Control conveyor using PWM
+            pwm = GPIO.PWM(self.conveyor_pin, 100)
+            pwm.start(speed * 100)
+            
         except Exception as e:
-            logger.error(f"Conveyor control failed: {e}")
-            return False
-
-    def emergency_stop(self):
-        """Trigger emergency stop for all systems."""
+            logger.error(f"Error controlling conveyor: {e}")
+            raise
+            
+    async def sort_item(self, plastic_type: str, position: Dict[str, float]):
+        """Sort a detected plastic item.
+        
+        Args:
+            plastic_type: Type of plastic detected
+            position: Position of the item on the conveyor
+        """
         try:
-            # Publish emergency stop signal
-            msg = Bool()
-            msg.data = True
-            self.emergency_stop_pub.publish(msg)
-            
             # Stop conveyor
-            self.control_conveyor(0.0)
+            await self.control_conveyor(0)
             
-            logger.info("Emergency stop triggered")
+            # Calculate arm angles for pickup
+            pickup_angles = self._calculate_angles(position)
+            await self.move_arm(pickup_angles)
+            
+            # Calculate drop position based on plastic type
+            drop_position = self._get_drop_position(plastic_type)
+            drop_angles = self._calculate_angles(drop_position)
+            await self.move_arm(drop_angles)
+            
+            # Resume conveyor
+            await self.control_conveyor(self.conveyor_config['speed'])
             
         except Exception as e:
-            logger.error(f"Emergency stop failed: {e}")
-
-    def _get_joint_names(self) -> List[str]:
-        """Get robot joint names based on robot type."""
-        if self.robot_type == "ur":
-            return [
-                "shoulder_pan_joint",
-                "shoulder_lift_joint",
-                "elbow_joint",
-                "wrist_1_joint",
-                "wrist_2_joint",
-                "wrist_3_joint"
-            ]
-        # Add support for other robot types here
-        raise ValueError(f"Unsupported robot type: {self.robot_type}")
-
-    def _inverse_kinematics(self, target_pose: Pose) -> List[float]:
-        """
-        Calculate inverse kinematics for target pose.
-        This is a placeholder - actual implementation would depend on robot type.
-        """
-        # TODO: Implement actual inverse kinematics based on robot type
-        # For now, return dummy joint values
-        return [0.0, -1.57, 1.57, -1.57, -1.57, 0.0]
-
-    def __del__(self):
-        """Cleanup when object is destroyed."""
-        if self.conveyor_client.is_socket_open():
-            self.conveyor_client.close()
-        if hasattr(self, 'node') and self.node:
-            self.node.destroy_node() 
+            logger.error(f"Error during item sorting: {e}")
+            raise
+            
+    def _calculate_angles(self, position: Dict[str, float]) -> Dict[str, float]:
+        """Calculate servo angles for a given position."""
+        # Implement inverse kinematics here
+        # This is a simplified placeholder
+        return {
+            'base': position.get('x', 0) / 100,
+            'elbow': position.get('y', 0) / 100,
+            'wrist': position.get('z', 0) / 100
+        }
+        
+    def _get_drop_position(self, plastic_type: str) -> Dict[str, float]:
+        """Get the drop position for a plastic type."""
+        # Define drop positions for each plastic type
+        positions = {
+            'PET': {'x': 10, 'y': 20, 'z': 0},
+            'HDPE': {'x': 20, 'y': 20, 'z': 0},
+            'PVC': {'x': 30, 'y': 20, 'z': 0},
+            'LDPE': {'x': 40, 'y': 20, 'z': 0},
+            'PP': {'x': 50, 'y': 20, 'z': 0},
+            'PS': {'x': 60, 'y': 20, 'z': 0},
+            'OTHER': {'x': 70, 'y': 20, 'z': 0}
+        }
+        return positions.get(plastic_type, positions['OTHER'])
+            
+    async def shutdown(self):
+        """Shutdown the robotics system."""
+        try:
+            # Stop conveyor
+            if self.conveyor_pin is not None:
+                GPIO.output(self.conveyor_pin, GPIO.LOW)
+            
+            # Reset servos
+            for servo in [self.servo_base, self.servo_elbow, self.servo_wrist]:
+                if servo is not None:
+                    servo.value = 0
+            
+            # Cleanup GPIO
+            GPIO.cleanup()
+            
+            logger.info("Robotics system shut down")
+            
+        except Exception as e:
+            logger.error(f"Error during robotics system shutdown: {e}")
+            raise 

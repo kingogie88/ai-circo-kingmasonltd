@@ -1,180 +1,289 @@
 """
-Real-time Analytics Dashboard for monitoring system performance
+Dashboard application for the recycling system.
 """
 
-import logging
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-import asyncio
+import time
+from typing import Dict, List
 
-from fastapi import FastAPI, WebSocket, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-import pandas as pd
-import numpy as np
+import plotly.graph_objs as go
+import streamlit as st
+from loguru import logger
 
-logger = logging.getLogger(__name__)
-
-class DashboardMetrics(BaseModel):
-    """Dashboard metrics model."""
-    timestamp: str
-    throughput: Dict[str, float]
-    quality_metrics: Dict[str, float]
-    energy_metrics: Dict[str, float]
-    maintenance_metrics: Dict[str, float]
-    blockchain_metrics: Dict[str, float]
-
-class DashboardApp:
-    def __init__(self):
-        """Initialize the dashboard application."""
-        self.app = FastAPI(title="Circo AI Dashboard")
-        
-        # Setup CORS
-        self.app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+def create_dashboard(port: int = 8501):
+    """Create and run the dashboard application.
+    
+    Args:
+        port: Port number for the dashboard
+    """
+    try:
+        st.set_page_config(
+            page_title="Plastic Recycling System",
+            page_icon="♻️",
+            layout="wide"
         )
         
-        # Mount static files (React build)
-        self.app.mount("/static", StaticFiles(directory="static"), name="static")
+        st.title("♻️ Plastic Recycling System Dashboard")
         
-        # Active WebSocket connections
-        self.active_connections: List[WebSocket] = []
+        # Create main sections
+        metrics_col, safety_col = st.columns(2)
         
-        # Initialize routes
-        self.setup_routes()
-        
-        logger.info("Initialized DashboardApp")
-
-    def setup_routes(self):
-        """Set up API routes."""
-        @self.app.get("/")
-        async def read_root():
-            return {"status": "ok"}
-
-        @self.app.get("/metrics")
-        async def get_metrics():
-            return await self.get_current_metrics()
-
-        @self.app.get("/metrics/history")
-        async def get_metrics_history(hours: int = 24):
-            return await self.get_historical_metrics(hours)
-
-        @self.app.websocket("/ws")
-        async def websocket_endpoint(websocket: WebSocket):
-            await websocket.accept()
-            self.active_connections.append(websocket)
-            try:
-                while True:
-                    # Send real-time updates
-                    metrics = await self.get_current_metrics()
-                    await websocket.send_json(metrics)
-                    await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"WebSocket error: {e}")
-            finally:
-                self.active_connections.remove(websocket)
-
-    async def get_current_metrics(self) -> Dict:
-        """Get current system metrics."""
-        try:
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "throughput": {
-                    "total_processed": 45670,  # kg
-                    "current_rate": 156.7,     # kg/hour
-                    "target_rate": 200.0,      # kg/hour
-                    "efficiency": 78.35        # percent
-                },
-                "quality_metrics": {
-                    "average_purity": 97.8,    # percent
-                    "contamination": 2.2,      # percent
-                    "rejection_rate": 1.5,     # percent
-                    "accuracy": 99.2           # percent
-                },
-                "energy_metrics": {
-                    "current_consumption": 75.5,  # kW
-                    "daily_usage": 1816.0,       # kWh
-                    "efficiency": 85.0,          # percent
-                    "cost_savings": 22.5         # percent
-                },
-                "maintenance_metrics": {
-                    "system_health": 92.0,     # percent
-                    "next_maintenance": "2024-03-15T08:00:00",
-                    "predicted_issues": 1,
-                    "uptime": 99.8             # percent
-                },
-                "blockchain_metrics": {
-                    "batches_logged": 1567,
-                    "carbon_credits": 156.7,    # tons
-                    "credit_value": 3134.00,    # USD
-                    "verification_rate": 100.0  # percent
-                }
-            }
-        except Exception as e:
-            logger.error(f"Failed to get current metrics: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-
-    async def get_historical_metrics(self, hours: int) -> Dict:
-        """Get historical metrics for specified time period."""
-        try:
-            # Generate time series data
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours)
-            timestamps = pd.date_range(start_time, end_time, freq='5min')
+        with metrics_col:
+            display_system_metrics()
             
-            return {
-                "timestamps": timestamps.strftime('%Y-%m-%dT%H:%M:%S').tolist(),
-                "throughput": {
-                    "processed": self._generate_timeseries(150, 200, len(timestamps)),
-                    "target": [200] * len(timestamps)
-                },
-                "quality": {
-                    "purity": self._generate_timeseries(95, 99, len(timestamps)),
-                    "contamination": self._generate_timeseries(1, 5, len(timestamps))
-                },
-                "energy": {
-                    "consumption": self._generate_timeseries(70, 80, len(timestamps)),
-                    "efficiency": self._generate_timeseries(80, 90, len(timestamps))
-                },
-                "maintenance": {
-                    "health": self._generate_timeseries(90, 95, len(timestamps))
-                }
-            }
-        except Exception as e:
-            logger.error(f"Failed to get historical metrics: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-
-    def _generate_timeseries(self, 
-                           min_val: float,
-                           max_val: float,
-                           length: int) -> List[float]:
-        """Generate smooth time series data."""
-        base = np.linspace(min_val, max_val, length)
-        noise = np.random.normal(0, (max_val - min_val) * 0.05, length)
-        return (base + noise).tolist()
-
-    async def broadcast_metrics(self):
-        """Broadcast metrics to all connected clients."""
-        if not self.active_connections:
-            return
+        with safety_col:
+            display_safety_status()
             
-        metrics = await self.get_current_metrics()
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(metrics)
-            except Exception as e:
-                logger.error(f"Broadcast failed: {e}")
+        # Create processing section
+        st.header("Processing Statistics")
+        stats_col1, stats_col2, stats_col3 = st.columns(3)
+        
+        with stats_col1:
+            display_processing_stats()
+            
+        with stats_col2:
+            display_plastic_distribution()
+            
+        with stats_col3:
+            display_error_rates()
+            
+        # Create controls section
+        st.header("System Controls")
+        control_col1, control_col2 = st.columns(2)
+        
+        with control_col1:
+            display_conveyor_controls()
+            
+        with control_col2:
+            display_emergency_controls()
+            
+        # Auto-refresh
+        if st.button("Refresh Data"):
+            st.experimental_rerun()
+            
+        # Add auto-refresh using JavaScript
+        st.markdown(
+            """
+            <script>
+                var timeout = setTimeout(function() {
+                    window.location.reload();
+                }, 5000);
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in dashboard: {e}")
+        st.error(f"Dashboard error: {str(e)}")
 
-    def start(self):
-        """Start the dashboard application."""
-        import uvicorn
-        uvicorn.run(self.app, host="0.0.0.0", port=8000)
+def display_system_metrics():
+    """Display system metrics."""
+    try:
+        from src.main import system
+        metrics = system.system_monitor.get_metrics()
+        
+        st.subheader("System Metrics")
+        
+        # Create metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "CPU Usage",
+                f"{metrics['cpu_usage']:.1f}%",
+                delta=f"{metrics['cpu_usage'] - 50:.1f}%"
+            )
+            
+        with col2:
+            st.metric(
+                "Memory Usage",
+                f"{metrics['memory_usage']:.1f}%",
+                delta=f"{metrics['memory_usage'] - 50:.1f}%"
+            )
+            
+        with col3:
+            st.metric(
+                "Items Processed",
+                metrics['items_processed']
+            )
+            
+        with col4:
+            st.metric(
+                "Errors",
+                metrics['errors'],
+                delta=-metrics['errors'],
+                delta_color="inverse"
+            )
+            
+        # Create CPU/Memory chart
+        chart_data = {
+            'Time': [time.strftime('%H:%M:%S')],
+            'CPU': [metrics['cpu_usage']],
+            'Memory': [metrics['memory_usage']]
+        }
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=chart_data['Time'],
+            y=chart_data['CPU'],
+            name='CPU'
+        ))
+        fig.add_trace(go.Scatter(
+            x=chart_data['Time'],
+            y=chart_data['Memory'],
+            name='Memory'
+        ))
+        
+        fig.update_layout(
+            title='System Resource Usage',
+            xaxis_title='Time',
+            yaxis_title='Usage %'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying metrics: {e}")
+        st.error("Failed to load system metrics")
 
-if __name__ == "__main__":
-    dashboard = DashboardApp()
-    dashboard.start() 
+def display_safety_status():
+    """Display safety system status."""
+    try:
+        from src.main import system
+        status = system.safety_system.get_safety_status()
+        
+        st.subheader("Safety Status")
+        
+        # Display monitoring status
+        st.write("Monitoring Status:", 
+                "🟢 Active" if status['monitoring_active'] else "🔴 Inactive")
+        
+        # Display violations
+        if status['violations']:
+            st.error("Safety Violations Detected:")
+            for violation in status['violations']:
+                st.write(f"⚠️ {violation}")
+        else:
+            st.success("No Safety Violations")
+            
+        # Display sensor status
+        st.write("Sensor Status:")
+        for sensor, active in status['sensors'].items():
+            st.write(f"{'🟢' if active else '🔴'} {sensor.replace('_', ' ').title()}")
+            
+    except Exception as e:
+        logger.error(f"Error displaying safety status: {e}")
+        st.error("Failed to load safety status")
+
+def display_processing_stats():
+    """Display processing statistics."""
+    try:
+        st.subheader("Processing Performance")
+        
+        # Create sample processing time chart
+        times = list(range(10))
+        processing_times = [0.5 + time * 0.05 for time in times]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=times,
+            y=processing_times,
+            name='Processing Time'
+        ))
+        
+        fig.update_layout(
+            title='Item Processing Time',
+            xaxis_title='Item Number',
+            yaxis_title='Time (s)'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying processing stats: {e}")
+        st.error("Failed to load processing statistics")
+
+def display_plastic_distribution():
+    """Display plastic type distribution."""
+    try:
+        st.subheader("Plastic Type Distribution")
+        
+        # Create sample distribution
+        plastic_types = ['PET', 'HDPE', 'PVC', 'LDPE', 'PP', 'PS', 'OTHER']
+        counts = [30, 25, 10, 15, 10, 5, 5]
+        
+        fig = go.Figure(data=[go.Pie(
+            labels=plastic_types,
+            values=counts,
+            hole=.3
+        )])
+        
+        fig.update_layout(title='Plastic Types Processed')
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying plastic distribution: {e}")
+        st.error("Failed to load plastic distribution")
+
+def display_error_rates():
+    """Display error rates."""
+    try:
+        st.subheader("Error Rates")
+        
+        # Create sample error rate chart
+        components = ['Vision', 'Robotics', 'Conveyor', 'Safety']
+        error_rates = [2, 1, 3, 0]
+        
+        fig = go.Figure(data=[go.Bar(
+            x=components,
+            y=error_rates
+        )])
+        
+        fig.update_layout(
+            title='Errors by Component',
+            xaxis_title='Component',
+            yaxis_title='Error Count'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying error rates: {e}")
+        st.error("Failed to load error rates")
+
+def display_conveyor_controls():
+    """Display conveyor control interface."""
+    try:
+        st.subheader("Conveyor Control")
+        
+        speed = st.slider(
+            "Conveyor Speed",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.5,
+            step=0.1
+        )
+        
+        if st.button("Set Speed"):
+            from src.main import system
+            system.robot_controller.control_conveyor(speed)
+            st.success(f"Conveyor speed set to {speed}")
+            
+    except Exception as e:
+        logger.error(f"Error displaying conveyor controls: {e}")
+        st.error("Failed to load conveyor controls")
+
+def display_emergency_controls():
+    """Display emergency control interface."""
+    try:
+        st.subheader("Emergency Controls")
+        
+        if st.button("🔴 EMERGENCY STOP", key="emergency_stop"):
+            from src.main import system
+            system.safety_system.emergency_stop()
+            st.error("Emergency stop triggered!")
+            
+    except Exception as e:
+        logger.error(f"Error displaying emergency controls: {e}")
+        st.error("Failed to load emergency controls") 
