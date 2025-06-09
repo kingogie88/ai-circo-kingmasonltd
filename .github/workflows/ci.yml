@@ -9,9 +9,23 @@ on:
 env:
   PYTHON_VERSION: '3.8'
 
+# Top level permissions used as a default
+permissions:
+  contents: write
+  packages: read
+  pull-requests: write
+  issues: write
+  checks: write
+  id-token: write # Required for authentication
+  actions: read   # Required for workflow runs
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
     
     steps:
     - uses: actions/checkout@v3
@@ -54,6 +68,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      packages: write
+      actions: read
     
     steps:
     - uses: actions/checkout@v3
@@ -82,6 +100,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      packages: read
+      id-token: write
+      actions: read
     
     steps:
     - uses: actions/checkout@v3
@@ -109,17 +132,41 @@ jobs:
         echo "Deploying version ${{ github.sha }}"
         # Install the built package
         pip install dist/*.whl
-        # Start the application
-        python -m src.main &
-        sleep 5
+        # Start the application in the background
+        nohup python -m src.main > app.log 2>&1 &
+        # Wait for application to start
+        sleep 10
+        # Store the PID
+        echo $! > app.pid
     
     - name: Verify deployment
       run: |
         echo "Verifying deployment..."
-        curl http://localhost:8000/health || exit 1
+        # More robust health check
+        for i in {1..5}; do
+          if curl -f http://localhost:8000/health; then
+            echo "Health check passed"
+            exit 0
+          fi
+          echo "Attempt $i failed, retrying..."
+          sleep 5
+        done
+        echo "Health check failed after 5 attempts"
+        exit 1
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        if [ -f app.pid ]; then
+          kill $(cat app.pid) || true
+        fi
 
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write  # Needed if posting results to PR
     steps:
     - uses: actions/checkout@v3
     
@@ -134,8 +181,9 @@ jobs:
         pip install black flake8 mypy isort
     
     - name: Check formatting
+      continue-on-error: true  # Don't fail the workflow for style issues
       run: |
-        black --check --diff src tests || true
-        isort --check-only --diff src tests || true
-        flake8 src tests || true
-        mypy src || true 
+        black --check --diff src tests
+        isort --check-only --diff src tests
+        flake8 src tests
+        mypy src 

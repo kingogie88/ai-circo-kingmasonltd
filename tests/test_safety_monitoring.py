@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from src.safety_monitoring.safety_monitor import SafetyMonitor, SafetyMetrics
+from src.safety_monitoring import SafetyMonitor, SafetyMetrics
 
 @pytest.fixture
 def sample_data():

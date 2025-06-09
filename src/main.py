@@ -5,11 +5,13 @@ Main entry point for the AI-Powered Plastic Recycling System.
 import asyncio
 import logging
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from fastapi import FastAPI
 from loguru import logger
 from prometheus_client import start_http_server
+import click
 
 from src.api.router import api_router
 from src.dashboard.app import create_dashboard
@@ -17,6 +19,7 @@ from src.monitoring.system_monitor import SystemMonitor
 from src.robotics.controller import RobotController
 from src.safety_monitoring.safety_system import SafetySystem
 from src.vision.plastic_detector import PlasticDetector
+from .vision import ImageProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -110,24 +113,82 @@ class RecyclingSystem:
             logger.error(f"Error during system shutdown: {e}")
             raise
 
-async def main():
-    """Main entry point for the recycling system."""
-    system = RecyclingSystem()
+def setup_logging(log_level: str = "INFO"):
+    """Set up logging configuration."""
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
+async def initialize_system(
+    model_path: Optional[Path] = None,
+    arm_config: Optional[dict] = None,
+    conveyor_config: Optional[dict] = None
+):
+    """Initialize the recycling system components."""
+    # Set default configurations if not provided
+    if arm_config is None:
+        arm_config = {"base": 0, "elbow": 0, "wrist": 0}
+    if conveyor_config is None:
+        conveyor_config = {"speed": 0.5}
+    
+    # Initialize components
+    safety_system = SafetySystem()
+    robot_controller = RobotController(arm_config, conveyor_config)
+    
+    # Initialize safety system first
+    await safety_system.initialize()
+    await robot_controller.initialize()
+    
+    return safety_system, robot_controller
+
+@click.command()
+@click.option(
+    "--model-path",
+    type=click.Path(exists=True),
+    help="Path to the YOLOv8 model file"
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+    default="INFO",
+    help="Logging level"
+)
+def main(model_path: Optional[str] = None, log_level: str = "INFO"):
+    """Run the plastic recycling system."""
+    # Set up logging
+    setup_logging(log_level)
+    logger.info("Starting plastic recycling system")
     
     try:
-        await system.startup()
+        # Run the async initialization
+        loop = asyncio.get_event_loop()
+        safety_system, robot_controller = loop.run_until_complete(
+            initialize_system(
+                model_path=Path(model_path) if model_path else None
+            )
+        )
+        
+        # Start safety monitoring
+        loop.run_until_complete(safety_system.start_monitoring())
         
         # Keep the system running
-        while True:
-            await asyncio.sleep(1)
-            
+        loop.run_forever()
+        
     except KeyboardInterrupt:
-        logger.info("Shutting down system...")
-        await system.shutdown()
+        logger.info("Shutting down...")
+        
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        await system.shutdown()
+        logger.error(f"Error during system operation: {e}")
         raise
+        
+    finally:
+        # Clean up
+        if 'safety_system' in locals():
+            loop.run_until_complete(safety_system.shutdown())
+        if 'robot_controller' in locals():
+            loop.run_until_complete(robot_controller.shutdown())
+        loop.close()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    main() 
