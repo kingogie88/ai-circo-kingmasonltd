@@ -20,6 +20,8 @@ permissions:
   id-token: write
   actions: read
 
+# Explicitly allow GitHub official actions
+run-name: ${{ github.actor }} running CI/CD pipeline
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -29,7 +31,8 @@ jobs:
       pull-requests: read
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -44,19 +47,15 @@ jobs:
         
     - name: Setup test environment
       run: |
-        # Ensure directories exist
         mkdir -p models
         mkdir -p src/{vision,robotics,safety_monitoring}
         mkdir -p tests
         
-        # Create necessary __init__.py files
         find src -type d -exec touch {}/__init__.py \;
         touch tests/__init__.py
         
-        # Create empty model file for testing
         touch models/yolov8_plastic.pt
         
-        # Set PYTHONPATH for test discovery
         echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
         
     - name: Run tests
@@ -129,19 +128,14 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "Deploying version ${{ github.sha }}"
-        # Install the built package
         pip install dist/*.whl
-        # Start the application in the background
         nohup python -m src.main > app.log 2>&1 &
-        # Wait for application to start
         sleep 10
-        # Store the PID
         echo $! > app.pid
     
     - name: Verify deployment
       run: |
         echo "Verifying deployment..."
-        # More robust health check
         for i in {1..5}; do
           if curl -f http://localhost:8000/health; then
             echo "Health check passed"
@@ -165,7 +159,7 @@ jobs:
     permissions:
       contents: read
       checks: write
-      pull-requests: write  # Needed if posting results to PR
+      pull-requests: write
     steps:
     - uses: actions/checkout@v3
     
@@ -180,7 +174,7 @@ jobs:
         pip install black flake8 mypy isort
     
     - name: Check formatting
-      continue-on-error: true  # Don't fail the workflow for style issues
+      continue-on-error: true
       run: |
         black --check --diff src tests
         isort --check-only --diff src tests
