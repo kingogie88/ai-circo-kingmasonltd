@@ -1,35 +1,22 @@
+"""Tests for vision functionality."""
+
+import cv2
+import numpy as np
+from PIL import Image
+import pytest
+from src.vision.image_processor import ImageProcessor
+
 def test_opencv_basic():
-
-    """Test OpenCV basic functionality"""
-
-    import cv2
-
-    import numpy as np
-
-    
-
+    """Test OpenCV basic functionality."""
     # Create a simple test image
-
-    img = np.zeros((100, 100, 3), dtype=np.uint8)
-
+    img = ImageProcessor.create_test_image(100, 100)
     assert img.shape == (100, 100, 3)
-
-
+    assert img.dtype == np.uint8
 
 def test_pillow_basic():
-
-    """Test PIL/Pillow basic functionality"""
-
-    from PIL import Image
-
-    import numpy as np
-
-    
-
+    """Test PIL/Pillow basic functionality."""
     # Create a test image
-
-    img_array = np.zeros((100, 100, 3), dtype=np.uint8)
-
-    img = Image.fromarray(img_array)
-
+    img_array = ImageProcessor.create_test_image(100, 100)
+    img = ImageProcessor.convert_to_pil(img_array)
     assert img.size == (100, 100)
+    assert img.mode == 'RGB'
