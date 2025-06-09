@@ -26,13 +26,20 @@ jobs:
         python -m pip install --upgrade pip
         pip install poetry
         poetry config virtualenvs.create false
-        poetry install --no-interaction
+        poetry install --no-interaction --no-root
+        pip install pytest pytest-cov numpy opencv-python pillow
+        
+    - name: Debug Info
+      run: |
+        pwd
+        ls -la
+        python -c "import sys; print(sys.path)"
         
     - name: Run tests
       run: |
         mkdir -p models
         touch models/yolov8_plastic.pt
-        pytest tests/ -v --no-cov
+        python -m pytest tests/ -v --tb=short
 
   build:
     needs: test

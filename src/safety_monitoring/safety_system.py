@@ -1,5 +1,5 @@
 """
-Safety monitoring system for the recycling system.
+Safety monitoring system for the plastic recycling system.
 """
 
 import asyncio
@@ -9,13 +9,13 @@ import RPi.GPIO as GPIO
 from loguru import logger
 
 class SafetySystem:
-    """Class for monitoring and ensuring system safety."""
+    """Class for monitoring system safety."""
     
     def __init__(self, timeout: float = 0.1, check_interval: float = 0.5):
         """Initialize the safety system.
         
         Args:
-            timeout: Emergency stop timeout in seconds
+            timeout: Timeout for safety checks in seconds
             check_interval: Interval between safety checks in seconds
         """
         self.timeout = timeout

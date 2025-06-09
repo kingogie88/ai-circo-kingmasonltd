@@ -1,0 +1,1 @@
+"""Safety monitoring module for the recycling system.""" 
