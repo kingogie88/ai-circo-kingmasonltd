@@ -41,19 +41,25 @@ jobs:
     - name: Set up Python
       run: |
         sudo apt-get update
-        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
-        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        python -m pip install --upgrade pip
+        sudo apt-get install -y python3.8 python3.8-dev python3.8-venv python3-pip
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+        python3 -m pip install --upgrade pip setuptools wheel
+        python3 -m venv venv
+        source venv/bin/activate
+        echo "VIRTUAL_ENV=$(pwd)/venv" >> $GITHUB_ENV
+        echo "PATH=$(pwd)/venv/bin:$PATH" >> $GITHUB_ENV
         
     - name: Install dependencies
       run: |
+        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pytest pytest-cov
         pip install -e .[dev]
         
     - name: Setup test environment
       run: |
+        source venv/bin/activate
         mkdir -p models
         mkdir -p src/{vision,robotics,safety_monitoring}
         mkdir -p tests
@@ -67,7 +73,12 @@ jobs:
         
     - name: Run tests
       run: |
-        python -m pytest tests/ -v --tb=short
+        source venv/bin/activate
+        python -m pytest tests/ -v --tb=short || {
+          echo "Test output:"
+          cat pytest-output.txt
+          exit 1
+        }
 
   build:
     needs: test
@@ -89,18 +100,23 @@ jobs:
     - name: Set up Python
       run: |
         sudo apt-get update
-        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
-        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        python -m pip install --upgrade pip
+        sudo apt-get install -y python3.8 python3.8-dev python3.8-venv python3-pip
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+        python3 -m pip install --upgrade pip setuptools wheel
+        python3 -m venv venv
+        source venv/bin/activate
+        echo "VIRTUAL_ENV=$(pwd)/venv" >> $GITHUB_ENV
+        echo "PATH=$(pwd)/venv/bin:$PATH" >> $GITHUB_ENV
         
     - name: Install build dependencies
       run: |
+        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install build wheel
         
     - name: Build package
       run: |
+        source venv/bin/activate
         python -m build
         
     - name: Upload artifacts
@@ -135,13 +151,17 @@ jobs:
     - name: Set up Python
       run: |
         sudo apt-get update
-        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
-        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        python -m pip install --upgrade pip
+        sudo apt-get install -y python3.8 python3.8-dev python3.8-venv python3-pip
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+        python3 -m pip install --upgrade pip setuptools wheel
+        python3 -m venv venv
+        source venv/bin/activate
+        echo "VIRTUAL_ENV=$(pwd)/venv" >> $GITHUB_ENV
+        echo "PATH=$(pwd)/venv/bin:$PATH" >> $GITHUB_ENV
     
     - name: Install dependencies
       run: |
+        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
@@ -149,6 +169,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        source venv/bin/activate
         echo "Deploying version ${{ github.sha }}"
         pip install dist/*.whl
         nohup python -m src.main > app.log 2>&1 &
@@ -157,6 +178,7 @@ jobs:
     
     - name: Verify deployment
       run: |
+        source venv/bin/activate
         echo "Verifying deployment..."
         for i in {1..5}; do
           if curl -f http://localhost:8000/health; then
@@ -193,20 +215,27 @@ jobs:
     - name: Set up Python
       run: |
         sudo apt-get update
-        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
-        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
-        python -m pip install --upgrade pip
+        sudo apt-get install -y python3.8 python3.8-dev python3.8-venv python3-pip
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+        python3 -m pip install --upgrade pip setuptools wheel
+        python3 -m venv venv
+        source venv/bin/activate
+        echo "VIRTUAL_ENV=$(pwd)/venv" >> $GITHUB_ENV
+        echo "PATH=$(pwd)/venv/bin:$PATH" >> $GITHUB_ENV
     
     - name: Install dependencies
       run: |
+        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install black flake8 mypy isort
     
     - name: Check formatting
-      continue-on-error: true
       run: |
-        black --check --diff src tests
-        isort --check-only --diff src tests
-        flake8 src tests
-        mypy src 
+        source venv/bin/activate
+        # Run each check separately and collect output
+        black --check --diff src tests || echo "Black formatting issues found"
+        isort --check-only --diff src tests || echo "Import sorting issues found"
+        flake8 src tests || echo "Flake8 issues found"
+        mypy src || echo "Type checking issues found"
+        # Don't fail the build for formatting issues
+        exit 0 
