@@ -1,71 +1,133 @@
 """
-Main application entry point for Circo AI Recycling System
+Main entry point for the AI-Powered Plastic Recycling System.
 """
 
-import os
-import logging
-import json
 import asyncio
-from typing import Dict
+import logging
+from pathlib import Path
 
-from orchestration.coordinator import Coordinator
-from dashboard.app import DashboardApp
+import yaml
+from fastapi import FastAPI
+from loguru import logger
+from prometheus_client import start_http_server
+
+from src.api.router import api_router
+from src.dashboard.app import create_dashboard
+from src.monitoring.system_monitor import SystemMonitor
+from src.robotics.controller import RobotController
+from src.safety_monitoring.safety_system import SafetySystem
+from src.vision.plastic_detector import PlasticDetector
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger.add("logs/system.log", rotation="1 day")
 
-def load_config() -> Dict:
-    """Load system configuration."""
-    config_path = os.getenv('CIRCO_CONFIG', 'config/config.json')
-    try:
-        with open(config_path) as f:
-            config = json.load(f)
-        return config
-    except Exception as e:
-        logger.error(f"Failed to load config: {e}")
-        return {}
+class RecyclingSystem:
+    def __init__(self, config_path: str = "config/settings.yaml"):
+        self.config = self._load_config(config_path)
+        self.app = FastAPI(title="Plastic Recycling System API")
+        self.setup_components()
+
+    def _load_config(self, config_path: str) -> dict:
+        """Load system configuration from YAML file."""
+        config_file = Path(config_path)
+        if not config_file.exists():
+            raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        
+        with open(config_file) as f:
+            return yaml.safe_load(f)
+
+    def setup_components(self):
+        """Initialize all system components."""
+        # Initialize vision system
+        self.vision_system = PlasticDetector(
+            model_path=self.config["vision"]["model_path"],
+            confidence_threshold=self.config["vision"]["confidence_threshold"]
+        )
+
+        # Initialize robotics
+        self.robot_controller = RobotController(
+            arm_config=self.config["robotics"]["arm_config"],
+            conveyor_config=self.config["robotics"]["conveyor"]
+        )
+
+        # Initialize safety system
+        self.safety_system = SafetySystem(
+            timeout=self.config["safety"]["emergency_stop_timeout"],
+            check_interval=self.config["safety"]["sensor_check_interval"]
+        )
+
+        # Initialize monitoring
+        self.system_monitor = SystemMonitor(
+            update_interval=self.config["monitoring"]["update_interval"],
+            alert_thresholds=self.config["monitoring"]["alert_thresholds"]
+        )
+
+        # Setup API routes
+        self.app.include_router(api_router)
+
+    async def startup(self):
+        """Start all system components."""
+        try:
+            # Start Prometheus metrics server
+            start_http_server(8000)
+            logger.info("Started Prometheus metrics server")
+
+            # Initialize vision system
+            await self.vision_system.initialize()
+            logger.info("Vision system initialized")
+
+            # Initialize robot controller
+            await self.robot_controller.initialize()
+            logger.info("Robot controller initialized")
+
+            # Start safety monitoring
+            await self.safety_system.start_monitoring()
+            logger.info("Safety system active")
+
+            # Start system monitoring
+            await self.system_monitor.start()
+            logger.info("System monitoring active")
+
+            # Start dashboard
+            dashboard_port = self.config["dashboard"]["port"]
+            create_dashboard(port=dashboard_port)
+            logger.info(f"Dashboard available at http://localhost:{dashboard_port}")
+
+        except Exception as e:
+            logger.error(f"Error during system startup: {e}")
+            raise
+
+    async def shutdown(self):
+        """Gracefully shut down all system components."""
+        try:
+            await self.vision_system.shutdown()
+            await self.robot_controller.shutdown()
+            await self.safety_system.shutdown()
+            await self.system_monitor.shutdown()
+            logger.info("System shutdown complete")
+        except Exception as e:
+            logger.error(f"Error during system shutdown: {e}")
+            raise
 
 async def main():
-    """Main application entry point."""
+    """Main entry point for the recycling system."""
+    system = RecyclingSystem()
+    
     try:
-        # Load configuration
-        config = load_config()
-        if not config:
-            raise ValueError("Failed to load configuration")
+        await system.startup()
         
-        # Initialize components
-        coordinator = Coordinator(config)
-        dashboard = DashboardApp()
-        
-        # Start dashboard in background
-        dashboard_task = asyncio.create_task(
-            dashboard.app.serve(host="0.0.0.0", port=8000)
-        )
-        
-        # Start coordinator
-        await coordinator.start()
-        
-        # Wait for shutdown signal
-        try:
-            await asyncio.gather(dashboard_task)
-        except KeyboardInterrupt:
-            logger.info("Shutdown signal received")
-        finally:
-            await coordinator.shutdown()
-        
+        # Keep the system running
+        while True:
+            await asyncio.sleep(1)
+            
+    except KeyboardInterrupt:
+        logger.info("Shutting down system...")
+        await system.shutdown()
     except Exception as e:
-        logger.error(f"Application error: {e}")
+        logger.error(f"Unexpected error: {e}")
+        await system.shutdown()
         raise
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Application terminated by user")
-    except Exception as e:
-        logger.error(f"Application failed: {e}")
-        raise 
+    asyncio.run(main()) 

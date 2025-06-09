@@ -3,15 +3,12 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
-
 setup(
     name="responsible-ai-implementation",
     version="0.1.0",
-    author="kingogie88",
-    author_email="kingogie88@github.com",
-    description="A comprehensive framework for implementing responsible, ethical, and safe AI systems",
+    author="KingMason Ltd",
+    author_email="contact@kingmasonltd.com",
+    description="A comprehensive framework for implementing responsible AI systems",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/kingogie88/responsible-ai-implementation",
@@ -31,30 +28,31 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
     python_requires=">=3.8",
-    install_requires=requirements,
+    install_requires=[
+        "numpy>=1.21.0",
+        "pandas>=1.3.0",
+        "scikit-learn>=1.0.0",
+        "shap>=0.41.0",
+        "matplotlib>=3.4.0",
+        "seaborn>=0.11.0",
+        "torch>=1.10.0",
+        "tensorflow>=2.8.0",
+        "aif360>=0.4.0",
+        "diffprivlib>=0.5.0",
+        "alibi>=0.8.0",
+        "mlflow>=2.0.0",
+        "great-expectations>=0.15.0",
+        "safety-gym>=0.2.0",
+    ],
     extras_require={
         "dev": [
             "pytest>=7.0.0",
             "pytest-cov>=3.0.0",
             "black>=22.0.0",
             "flake8>=4.0.0",
-            "mypy>=0.9.0",
-            "isort>=5.10.0",
-        ],
-        "docs": [
-            "sphinx>=4.0.0",
-            "mkdocs>=1.4.0",
-            "mkdocs-material>=8.0.0",
-        ],
-    },
-    entry_points={
-        "console_scripts": [
-            "rai-bias=responsible_ai.cli.bias:main",
-            "rai-fairness=responsible_ai.cli.fairness:main",
-            "rai-explain=responsible_ai.cli.explain:main",
-            "rai-privacy=responsible_ai.cli.privacy:main",
-            "rai-safety=responsible_ai.cli.safety:main",
-            "rai-governance=responsible_ai.cli.governance:main",
+            "mypy>=0.900",
+            "sphinx>=4.5.0",
+            "pre-commit>=2.17.0",
         ],
     },
 ) 

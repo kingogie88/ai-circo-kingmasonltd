@@ -1,80 +1,109 @@
 # Contributing to Responsible AI Implementation
 
-We love your input! We want to make contributing to Responsible AI Implementation as easy and transparent as possible, whether it's:
+First off, thank you for considering contributing to the Responsible AI Implementation project! It's people like you that help make this framework more robust and useful for the AI community.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
+## Code of Conduct
 
-## We Develop with Github
-We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
+This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
 
-## We Use [Github Flow](https://guides.github.com/introduction/flow/index.html)
-Pull requests are the best way to propose changes to the codebase. We actively welcome your pull requests:
+## How Can I Contribute?
 
-1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes.
-5. Make sure your code lints.
-6. Issue that pull request!
+### Reporting Bugs
 
-## Any contributions you make will be under the MIT Software License
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
+Before creating bug reports, please check the issue list as you might find out that you don't need to create one. When you are creating a bug report, please include as many details as possible:
 
-## Report bugs using Github's [issue tracker](https://github.com/kingogie88/responsible-ai-implementation/issues)
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/kingogie88/responsible-ai-implementation/issues/new); it's that easy!
+* Use a clear and descriptive title
+* Describe the exact steps which reproduce the problem
+* Provide specific examples to demonstrate the steps
+* Describe the behavior you observed after following the steps
+* Explain which behavior you expected to see instead and why
+* Include any error messages or stack traces
 
-## Write bug reports with detail, background, and sample code
+### Suggesting Enhancements
 
-**Great Bug Reports** tend to have:
+If you have a suggestion for a new feature or enhancement:
 
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
+* Use a clear and descriptive title
+* Provide a step-by-step description of the suggested enhancement
+* Provide specific examples to demonstrate the steps
+* Describe the current behavior and explain which behavior you expected to see instead
+* Explain why this enhancement would be useful
+
+### Pull Requests
+
+* Fork the repo and create your branch from `main`
+* If you've added code that should be tested, add tests
+* Ensure the test suite passes
+* Make sure your code lints
+* Update the documentation
 
 ## Development Process
 
-1. Install development dependencies:
-```bash
-pip install -e ".[dev]"
-```
+1. Fork the repository
+2. Create a new branch for your feature/fix
+3. Write your code
+4. Add or update tests
+5. Run the test suite
+6. Update documentation
+7. Submit a Pull Request
 
-2. Set up pre-commit hooks:
+### Setting Up Development Environment
+
 ```bash
+# Clone your fork
+git clone https://github.com/your-username/responsible-ai-implementation.git
+cd responsible-ai-implementation
+
+# Create a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
 pre-commit install
 ```
 
-3. Follow code style guidelines:
-- Use [Black](https://github.com/psf/black) for code formatting
-- Use [isort](https://pycqa.github.io/isort/) for import sorting
-- Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guide
-- Add type hints to all functions
-- Write docstrings in Google style
+### Running Tests
 
-4. Run tests:
 ```bash
-pytest tests/
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=src tests/
 ```
 
-5. Check code quality:
+### Code Style
+
+We use:
+* `black` for code formatting
+* `flake8` for style guide enforcement
+* `mypy` for static type checking
+
 ```bash
-flake8 src/
-mypy src/
+# Format code
+black .
+
+# Check style
+flake8 .
+
+# Type checking
+mypy src tests
 ```
 
 ## Documentation
 
-- Update documentation for any new features or changes
-- Follow the documentation style guide
-- Test documentation examples
-- Update the changelog
+* Keep docstrings up to date
+* Follow Google style for docstrings
+* Update README.md if needed
+* Add examples for new features
+
+## Versioning
+
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/kingogie88/responsible-ai-implementation/tags).
 
 ## License
-By contributing, you agree that your contributions will be licensed under its MIT License. 
+
+By contributing, you agree that your contributions will be licensed under the MIT License. 

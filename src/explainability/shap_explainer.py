@@ -1,84 +1,78 @@
 """
-SHAP (SHapley Additive exPlanations) explainer module for model interpretability.
+SHAP-based Model Explainability Module for Responsible AI Implementation.
+
+This module provides tools for explaining model predictions using SHAP (SHapley Additive exPlanations).
 """
 
-from typing import Dict, List, Optional, Union, Any
 import numpy as np
 import pandas as pd
 import shap
-import matplotlib.pyplot as plt
-from sklearn.base import BaseEstimator
+from typing import Dict, List, Optional, Union, Any
+from dataclasses import dataclass
+
+@dataclass
+class ShapExplanation:
+    """Container for SHAP explanation results."""
+    feature_importance: Dict[str, float]
+    shap_values: np.ndarray
+    base_value: float
+    explanation_text: str
 
 class ShapExplainer:
-    """A class for explaining model predictions using SHAP values."""
+    """Main class for explaining model predictions using SHAP."""
     
-    def __init__(
-        self,
-        model: BaseEstimator,
-        background_data: Optional[Union[np.ndarray, pd.DataFrame]] = None,
-        model_type: str = "tree"
-    ):
+    def __init__(self, model: Any, feature_names: List[str]):
         """
-        Initialize the SHAP explainer.
-
+        Initialize ShapExplainer.
+        
         Args:
             model: The trained model to explain
-            background_data: Background data for SHAP explainer initialization
-            model_type: Type of model ('tree', 'linear', 'kernel', or 'deep')
+            feature_names: List of feature names
         """
         self.model = model
-        self.background_data = background_data
-        self.model_type = model_type
+        self.feature_names = feature_names
         self.explainer = None
-        self.shap_values = None
-        self.feature_names = None
         
-        self._initialize_explainer()
-
-    def _initialize_explainer(self):
-        """Initialize the appropriate SHAP explainer based on model type."""
-        if self.model_type == "tree":
-            self.explainer = shap.TreeExplainer(self.model)
-        elif self.model_type == "linear":
-            self.explainer = shap.LinearExplainer(self.model, self.background_data)
-        elif self.model_type == "kernel":
-            self.explainer = shap.KernelExplainer(
-                self.model.predict_proba 
-                if hasattr(self.model, "predict_proba") 
-                else self.model.predict,
-                self.background_data
-            )
-        elif self.model_type == "deep":
-            self.explainer = shap.DeepExplainer(self.model, self.background_data)
-        else:
-            raise ValueError(
-                f"Unsupported model type: {self.model_type}. "
-                "Supported types are: 'tree', 'linear', 'kernel', 'deep'"
-            )
-
+    def _initialize_explainer(self, background_data: np.ndarray):
+        """
+        Initialize the SHAP explainer based on model type.
+        
+        Args:
+            background_data: Representative dataset for SHAP explainer
+        """
+        try:
+            # Try Tree explainer first (for tree-based models)
+            self.explainer = shap.TreeExplainer(self.model, background_data)
+        except:
+            try:
+                # Try Kernel explainer as fallback
+                self.explainer = shap.KernelExplainer(
+                    self.model.predict_proba if hasattr(self.model, 'predict_proba')
+                    else self.model.predict,
+                    background_data
+                )
+            except Exception as e:
+                raise ValueError(f"Could not initialize SHAP explainer: {str(e)}")
+    
     def explain_instance(
         self,
-        instance: Union[np.ndarray, pd.DataFrame],
-        feature_names: Optional[List[str]] = None
-    ) -> Dict[str, float]:
+        instance: np.ndarray,
+        background_data: np.ndarray
+    ) -> ShapExplanation:
         """
-        Generate SHAP explanations for a single instance.
-
+        Generate SHAP explanation for a single instance.
+        
         Args:
             instance: The instance to explain
-            feature_names: List of feature names
-
+            background_data: Representative dataset for SHAP explainer
+            
         Returns:
-            Dictionary mapping features to their SHAP values
+            ShapExplanation object containing the explanation
         """
-        # Ensure instance is in the correct format
-        if isinstance(instance, pd.DataFrame):
-            self.feature_names = feature_names or instance.columns.tolist()
-            instance = instance.values
-        else:
-            self.feature_names = feature_names or [f"feature_{i}" for i in range(instance.shape[-1])]
+        if self.explainer is None:
+            self._initialize_explainer(background_data)
         
-        # Reshape if needed
+        # Reshape instance if needed
         if len(instance.shape) == 1:
             instance = instance.reshape(1, -1)
         
@@ -87,42 +81,128 @@ class ShapExplainer:
         
         # Handle different SHAP value formats
         if isinstance(shap_values, list):
-            shap_values = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+            # For multi-class, take positive class
+            shap_values = shap_values[1]
         
-        # Create explanation dictionary
-        explanation = dict(zip(self.feature_names, shap_values[0]))
-        return explanation
-
+        # Get base value
+        base_value = (
+            self.explainer.expected_value[1]
+            if isinstance(self.explainer.expected_value, (list, np.ndarray))
+            else self.explainer.expected_value
+        )
+        
+        # Calculate feature importance
+        feature_importance = dict(zip(
+            self.feature_names,
+            np.abs(shap_values[0])
+        ))
+        
+        # Generate explanation text
+        explanation_text = self._generate_explanation_text(
+            feature_importance,
+            shap_values[0],
+            base_value
+        )
+        
+        return ShapExplanation(
+            feature_importance=feature_importance,
+            shap_values=shap_values,
+            base_value=base_value,
+            explanation_text=explanation_text
+        )
+    
     def explain_dataset(
         self,
-        data: Union[np.ndarray, pd.DataFrame],
-        feature_names: Optional[List[str]] = None
-    ) -> np.ndarray:
+        data: np.ndarray,
+        background_data: np.ndarray,
+        max_display: int = 10
+    ) -> Dict[str, Any]:
         """
         Generate SHAP explanations for a dataset.
-
+        
         Args:
             data: The dataset to explain
-            feature_names: List of feature names
-
+            background_data: Representative dataset for SHAP explainer
+            max_display: Maximum number of features to include in summary
+            
         Returns:
-            Array of SHAP values for the dataset
+            Dictionary containing global explanations
         """
-        # Handle DataFrame input
-        if isinstance(data, pd.DataFrame):
-            self.feature_names = feature_names or data.columns.tolist()
-            data = data.values
-        else:
-            self.feature_names = feature_names or [f"feature_{i}" for i in range(data.shape[1])]
+        if self.explainer is None:
+            self._initialize_explainer(background_data)
         
-        # Calculate SHAP values
-        self.shap_values = self.explainer.shap_values(data)
+        # Calculate SHAP values for all instances
+        shap_values = self.explainer.shap_values(data)
         
         # Handle different SHAP value formats
-        if isinstance(self.shap_values, list):
-            self.shap_values = self.shap_values[1] if len(self.shap_values) > 1 else self.shap_values[0]
+        if isinstance(shap_values, list):
+            shap_values = shap_values[1]
         
-        return self.shap_values
+        # Calculate global feature importance
+        global_importance = np.abs(shap_values).mean(axis=0)
+        feature_importance = dict(zip(
+            self.feature_names,
+            global_importance
+        ))
+        
+        # Sort features by importance
+        sorted_features = sorted(
+            feature_importance.items(),
+            key=lambda x: abs(x[1]),
+            reverse=True
+        )
+        
+        # Generate summary
+        summary = {
+            'global_importance': dict(sorted_features[:max_display]),
+            'shap_values': shap_values,
+            'base_value': (
+                self.explainer.expected_value[1]
+                if isinstance(self.explainer.expected_value, (list, np.ndarray))
+                else self.explainer.expected_value
+            )
+        }
+        
+        return summary
+    
+    def _generate_explanation_text(
+        self,
+        feature_importance: Dict[str, float],
+        shap_values: np.ndarray,
+        base_value: float
+    ) -> str:
+        """
+        Generate human-readable explanation text.
+        
+        Args:
+            feature_importance: Dictionary of feature importance values
+            shap_values: SHAP values for the instance
+            base_value: Base value for the model
+            
+        Returns:
+            Human-readable explanation text
+        """
+        # Sort features by absolute importance
+        sorted_features = sorted(
+            zip(self.feature_names, shap_values),
+            key=lambda x: abs(x[1]),
+            reverse=True
+        )
+        
+        # Generate explanation
+        explanation = [
+            "Model Prediction Explanation:",
+            f"Base prediction value: {base_value:.3f}\n",
+            "Top contributing features:"
+        ]
+        
+        for feature, value in sorted_features[:5]:  # Show top 5 features
+            impact = "increased" if value > 0 else "decreased"
+            explanation.append(
+                f"- {feature} {impact} the prediction by {abs(value):.3f}"
+            )
+        
+        return "\n".join(explanation)
 
     def plot_feature_importance(
         self,
@@ -244,11 +324,11 @@ class ShapExplainer:
         Returns:
             String containing the explanation report
         """
-        explanation = self.explain_instance(instance, feature_names)
+        explanation = self.explain_instance(instance, self.background_data)
         
         # Sort features by absolute SHAP value
         sorted_features = sorted(
-            explanation.items(),
+            explanation.feature_importance.items(),
             key=lambda x: abs(x[1]),
             reverse=True
         )
@@ -265,7 +345,7 @@ class ShapExplainer:
             )
         
         # Add summary
-        total_impact = sum(abs(v) for v in explanation.values())
+        total_impact = sum(abs(v) for v in explanation.feature_importance.values())
         report.append(f"\nTotal Feature Impact: {total_impact:.4f}")
         
         return "\n".join(report) 

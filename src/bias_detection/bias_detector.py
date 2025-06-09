@@ -1,25 +1,154 @@
 """
-Bias Detector module for identifying and measuring various types of bias in ML models and datasets.
+Bias Detection Module for Responsible AI Implementation.
+
+This module provides tools for detecting and measuring various types of bias in ML models
+and datasets.
 """
 
-from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
-from sklearn.base import BaseEstimator
+from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
+
+@dataclass
+class BiasMetrics:
+    """Container for various bias metrics."""
+    demographic_parity: float
+    equal_opportunity: float
+    disparate_impact: float
+    group_fairness: Dict[str, float]
 
 class BiasDetector:
-    """A class for detecting and measuring various types of bias in ML models and datasets."""
+    """Main class for detecting and measuring bias in ML models and datasets."""
     
     def __init__(self, sensitive_features: List[str]):
         """
-        Initialize the BiasDetector.
-
+        Initialize BiasDetector.
+        
         Args:
             sensitive_features: List of column names representing protected attributes
         """
         self.sensitive_features = sensitive_features
-        self.metrics: Dict[str, float] = {}
+        
+    def compute_demographic_parity(
+        self,
+        y_pred: np.ndarray,
+        protected_attributes: pd.DataFrame
+    ) -> float:
+        """
+        Compute demographic parity - difference in prediction rates across groups.
+        
+        Args:
+            y_pred: Model predictions
+            protected_attributes: DataFrame containing protected attribute values
+            
+        Returns:
+            Demographic parity score (0 = perfect parity)
+        """
+        groups = protected_attributes[self.sensitive_features[0]].unique()
+        pred_rates = []
+        
+        for group in groups:
+            mask = protected_attributes[self.sensitive_features[0]] == group
+            pred_rate = np.mean(y_pred[mask])
+            pred_rates.append(pred_rate)
+            
+        return np.max(pred_rates) - np.min(pred_rates)
+    
+    def compute_equal_opportunity(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        protected_attributes: pd.DataFrame
+    ) -> float:
+        """
+        Compute equal opportunity - difference in true positive rates across groups.
+        
+        Args:
+            y_true: Ground truth labels
+            y_pred: Model predictions
+            protected_attributes: DataFrame containing protected attribute values
+            
+        Returns:
+            Equal opportunity difference (0 = perfect equality)
+        """
+        groups = protected_attributes[self.sensitive_features[0]].unique()
+        tpr_rates = []
+        
+        for group in groups:
+            mask = protected_attributes[self.sensitive_features[0]] == group
+            tn, fp, fn, tp = confusion_matrix(y_true[mask], y_pred[mask]).ravel()
+            tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
+            tpr_rates.append(tpr)
+            
+        return np.max(tpr_rates) - np.min(tpr_rates)
+    
+    def compute_disparate_impact(
+        self,
+        y_pred: np.ndarray,
+        protected_attributes: pd.DataFrame
+    ) -> float:
+        """
+        Compute disparate impact - ratio of prediction rates between groups.
+        
+        Args:
+            y_pred: Model predictions
+            protected_attributes: DataFrame containing protected attribute values
+            
+        Returns:
+            Disparate impact ratio (1 = no impact)
+        """
+        groups = protected_attributes[self.sensitive_features[0]].unique()
+        pred_rates = []
+        
+        for group in groups:
+            mask = protected_attributes[self.sensitive_features[0]] == group
+            pred_rate = np.mean(y_pred[mask])
+            pred_rates.append(pred_rate)
+            
+        return min(pred_rates) / max(pred_rates) if max(pred_rates) > 0 else 1
+    
+    def analyze_bias(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        protected_attributes: pd.DataFrame
+    ) -> BiasMetrics:
+        """
+        Perform comprehensive bias analysis.
+        
+        Args:
+            y_true: Ground truth labels
+            y_pred: Model predictions
+            protected_attributes: DataFrame containing protected attribute values
+            
+        Returns:
+            BiasMetrics object containing various bias measurements
+        """
+        demographic_parity = self.compute_demographic_parity(y_pred, protected_attributes)
+        equal_opportunity = self.compute_equal_opportunity(y_true, y_pred, protected_attributes)
+        disparate_impact = self.compute_disparate_impact(y_pred, protected_attributes)
+        
+        # Compute group-specific metrics
+        group_fairness = {}
+        for feature in self.sensitive_features:
+            groups = protected_attributes[feature].unique()
+            group_metrics = {}
+            for group in groups:
+                mask = protected_attributes[feature] == group
+                group_metrics[str(group)] = {
+                    'prediction_rate': np.mean(y_pred[mask]),
+                    'accuracy': np.mean(y_pred[mask] == y_true[mask])
+                }
+            group_fairness[feature] = group_metrics
+            
+        return BiasMetrics(
+            demographic_parity=demographic_parity,
+            equal_opportunity=equal_opportunity,
+            disparate_impact=disparate_impact,
+            group_fairness=group_fairness
+        )
 
     def calculate_demographic_disparity(
         self,
@@ -164,7 +293,6 @@ class BiasDetector:
             )
         }
         
-        self.metrics = metrics
         return metrics
 
     def get_bias_report(self) -> str:

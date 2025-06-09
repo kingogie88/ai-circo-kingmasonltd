@@ -1,0 +1,104 @@
+# AI-Powered Plastic Recycling System Configuration
+
+# Vision System Configuration
+vision:
+  camera_id: 0
+  resolution: [1920, 1080]
+  fps: 30
+  model_path: "models/plastic_classifier.pt"
+  confidence_threshold: 0.85
+  supported_types:
+    - PET
+    - HDPE
+    - PVC
+    - LDPE
+    - PP
+    - PS
+    - OTHER
+
+# Robotics Configuration
+robotics:
+  arm_config:
+    max_speed: 100
+    acceleration: 50
+    payload_limit: 5.0  # kg
+    safety_margin: 0.1  # meters
+  conveyor:
+    speed: 0.5  # meters/second
+    width: 0.8  # meters
+  sorting_bins:
+    count: 7
+    spacing: 0.5  # meters
+
+# Monitoring System
+monitoring:
+  update_interval: 5  # seconds
+  metrics_retention: 30  # days
+  alert_thresholds:
+    temperature: 80  # celsius
+    humidity: 85  # percent
+    pressure: 2.5  # bar
+  log_level: "INFO"
+
+# Dashboard Configuration
+dashboard:
+  port: 8501
+  refresh_rate: 1  # seconds
+  theme: "light"
+  modules:
+    - throughput
+    - quality
+    - energy
+    - maintenance
+    - alerts
+
+# Database Configuration
+database:
+  type: "postgresql"
+  host: "localhost"
+  port: 5432
+  name: "recycling_db"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+
+# Blockchain Configuration
+blockchain:
+  network: "ethereum"
+  contract_address: "${CONTRACT_ADDRESS}"
+  node_url: "${BLOCKCHAIN_NODE}"
+  gas_limit: 3000000
+
+# Energy Monitoring
+energy:
+  sampling_rate: 1  # seconds
+  power_threshold: 5000  # watts
+  optimization_target: "efficiency"  # efficiency/speed/balanced
+
+# Safety Systems
+safety:
+  emergency_stop_timeout: 0.1  # seconds
+  sensor_check_interval: 0.5  # seconds
+  safety_zones:
+    - name: "robot_workspace"
+      dimensions: [2.0, 2.0, 2.0]  # meters
+    - name: "conveyor_area"
+      dimensions: [3.0, 1.0, 1.5]  # meters
+
+# Maintenance
+maintenance:
+  check_interval: 86400  # 24 hours in seconds
+  predictive_window: 7  # days
+  service_reminder: 30  # days
+
+# Quality Control
+quality:
+  min_confidence: 0.9
+  contamination_threshold: 0.05
+  sample_rate: 100  # items
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  rate_limit: 100  # requests per minute
+  timeout: 30  # seconds 

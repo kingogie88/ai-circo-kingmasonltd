@@ -24,27 +24,90 @@ wheels/
 venv/
 env/
 ENV/
-.env
-.venv
-env.bak/
-venv.bak/
 
-# IDEs and Editors
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
 .project
+.pydevproject
 .settings/
-.classpath
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*/.ipynb_checkpoints/*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+
+# Model files
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.pb
+models/*.tflite
+models/*.onnx
+
+# Documentation
+docs/_build/
+site/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.bak
+
+# Media files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.mp4
+*.avi
+*.mov
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dll
+*.dylib
 
 # Distribution / packaging
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -61,57 +124,23 @@ wheels/
 .installed.cfg
 *.egg
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# PyInstaller
+*.manifest
+*.spec
 
-# Logs and databases
-*.log
-*.sqlite
-*.db
-logs/
-*.pid
-*.seed
-*.pid.lock
+# Credentials
+credentials.json
+*_key.json
+*.pem
+*.key
 
-# Model files and data
-*.h5
-*.pkl
-*.model
-*.joblib
-models/saved/*
-datasets/raw/*
-!datasets/raw/.gitkeep
-datasets/processed/*
-!datasets/processed/.gitkeep
+# Local development
+docker-compose.override.yml
+.docker/
+.dockerignore
 
-# Environment variables
-.env
-.env.*
-
-# Documentation
-docs/_build/
-site/
-
-# MLflow
-mlruns/
-
-# Weights & Biases
-wandb/
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db 
+# Blockchain
+.secret
+node_modules/
+artifacts/
+cache/ 
