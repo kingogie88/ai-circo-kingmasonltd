@@ -31,13 +31,20 @@ jobs:
       pull-requests: read
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    - name: Checkout code
+      run: |
+        git init
+        git remote add origin https://github.com/${{ github.repository }}.git
+        git fetch origin ${{ github.ref }}
+        git checkout FETCH_HEAD
     
     - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        python -m pip install --upgrade pip
         
     - name: Install dependencies
       run: |
@@ -72,12 +79,20 @@ jobs:
       actions: read
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      run: |
+        git init
+        git remote add origin https://github.com/${{ github.repository }}.git
+        git fetch origin ${{ github.ref }}
+        git checkout FETCH_HEAD
     
     - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        python -m pip install --upgrade pip
         
     - name: Install build dependencies
       run: |
@@ -88,11 +103,11 @@ jobs:
       run: |
         python -m build
         
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: dist
-        path: dist/
+    - name: Upload artifacts
+      run: |
+        mkdir -p /tmp/artifacts
+        cp -r dist/* /tmp/artifacts/
+        echo "ARTIFACT_PATH=/tmp/artifacts" >> $GITHUB_ENV
 
   deploy:
     needs: build
@@ -105,18 +120,25 @@ jobs:
       actions: read
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      run: |
+        git init
+        git remote add origin https://github.com/${{ github.repository }}.git
+        git fetch origin ${{ github.ref }}
+        git checkout FETCH_HEAD
     
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: dist
-        path: dist/
+    - name: Download artifacts
+      run: |
+        mkdir -p dist
+        cp -r ${{ env.ARTIFACT_PATH }}/* dist/
     
     - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        python -m pip install --upgrade pip
     
     - name: Install dependencies
       run: |
@@ -161,12 +183,20 @@ jobs:
       checks: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      run: |
+        git init
+        git remote add origin https://github.com/${{ github.repository }}.git
+        git fetch origin ${{ github.ref }}
+        git checkout FETCH_HEAD
     
     - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python${{ env.PYTHON_VERSION }}
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${{ env.PYTHON_VERSION }} 1
+        python -m pip install --upgrade pip
     
     - name: Install dependencies
       run: |
