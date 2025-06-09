@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Plastic Recycling CI/CD Pipeline
 
 on:
   push:
