@@ -1,0 +1,14 @@
+name: Disabled Workflows
+
+on: [workflow_dispatch]
+
+permissions: {}
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflows disabled
+        run: |
+          echo "All workflows have been disabled for this repository."
+          exit 1 
