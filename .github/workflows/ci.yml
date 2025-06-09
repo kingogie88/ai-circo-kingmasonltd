@@ -1,5 +1,6 @@
 name: Plastic Recycling CI/CD Pipeline
 
+# Workflow triggered on push to main and pull requests
 on:
   push:
     branches: [ main ]
@@ -9,15 +10,15 @@ on:
 env:
   PYTHON_VERSION: '3.8'
 
-# Top level permissions used as a default
+# Workflow permissions configured via GitHub UI
 permissions:
   contents: write
   packages: read
   pull-requests: write
   issues: write
   checks: write
-  id-token: write # Required for authentication
-  actions: read   # Required for workflow runs
+  id-token: write
+  actions: read
 
 jobs:
   test:
@@ -43,21 +44,19 @@ jobs:
         
     - name: Setup test environment
       run: |
-        # Create necessary directories
+        # Ensure directories exist
         mkdir -p models
         mkdir -p src/{vision,robotics,safety_monitoring}
+        mkdir -p tests
         
-        # Create empty model file
-        touch models/yolov8_plastic.pt
-        
-        # Create __init__.py files
-        touch src/__init__.py
-        touch src/vision/__init__.py
-        touch src/robotics/__init__.py
-        touch src/safety_monitoring/__init__.py
+        # Create necessary __init__.py files
+        find src -type d -exec touch {}/__init__.py \;
         touch tests/__init__.py
         
-        # Set PYTHONPATH
+        # Create empty model file for testing
+        touch models/yolov8_plastic.pt
+        
+        # Set PYTHONPATH for test discovery
         echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
         
     - name: Run tests
