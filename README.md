@@ -1,6 +1,31 @@
 # AI-Powered Plastic Recycling System
 
-An intelligent system for automated plastic waste sorting, recycling process optimization, and sustainability tracking.
+An advanced system for automated plastic waste sorting and recycling using computer vision and robotics.
+
+## Features
+
+- Computer vision-based plastic type detection using YOLOv8
+- Robotic arm control for sorting
+- Real-time monitoring and safety systems
+- Web dashboard for system monitoring
+- REST API for system control
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `poetry install`
+3. Configure environment variables
+4. Run the application: `python -m src.main`
+
+## Development
+
+- Run tests: `poetry run pytest`
+- Check code style: `poetry run black .`
+- Type checking: `poetry run mypy src`
+
+## License
+
+MIT License
 
 ## 🌟 Features
 
